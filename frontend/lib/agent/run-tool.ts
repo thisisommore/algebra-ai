@@ -4,6 +4,7 @@ import { stepHint, stepTitle, summarizeStep } from "./steps";
 import type { AskedQuestion, EmitFn, OptionGroup, ReceiptInfo } from "./events";
 import { explorerTx, solscanTx } from "../explorer";
 import type { ServerIdentity } from "./server-client";
+import { windowFor } from "./choices";
 
 // Paid calls are counted per identity object, which the route handler
 // creates fresh for every request — so the count is per turn. A model that
@@ -108,6 +109,48 @@ export function optionsAsText(groups: OptionGroup[]): string {
     .join("\n");
 }
 
+/**
+ * Pays a comparison's Balanced card (or its first allowed one) as if the person had clicked it.
+ * Counts against the turn's paid-call limit. Undefined means "show the cards instead": nothing
+ * allowed, the limit reached, or the payment didn't go through.
+ */
+async function autoPay(
+  group: OptionGroup,
+  identity: ServerIdentity,
+  emit: EmitFn,
+  execute: ToolExecutor
+): Promise<Awaited<ReturnType<typeof runTool>> | undefined> {
+  const allowed = group.recommendations.filter((r) => r.decision === "ALLOW");
+  const rec = allowed.find((r) => r.strategy === "balanced") ?? allowed[0];
+  if (!rec) return undefined;
+  const used = paidThisTurn.get(identity) ?? 0;
+  if (used >= MAX_PAID_CALLS_PER_TURN) return undefined;
+  paidThisTurn.set(identity, used + 1);
+  const paid = await runTool(
+    "pay_choice",
+    {
+      work: group.work,
+      input: group.input,
+      max_price_usdc: group.maxPriceUsdc,
+      provider: rec.provider,
+      strategy: rec.strategy,
+      window: windowFor({ group: group.id, provider: rec.provider }),
+      auto: true,
+    },
+    identity,
+    emit,
+    execute
+  );
+  const d = paid.result.ok ? (paid.result.data as Record<string, unknown>) : undefined;
+  const outcome = d?.outcome;
+  if (!d || (outcome !== "delivered" && outcome !== "being_confirmed" && outcome !== "approval_required")) return undefined;
+  const note =
+    outcome === "approval_required"
+      ? "Auto-pay is on, but the user's Spend Pass asks them to approve this price: an approval card is shown. Nothing has been paid yet."
+      : `Auto-pay is on: Algebra paid ${rec.strategy ?? "the recommended"} option ${rec.provider} for the user. Give them the answer and what it cost.`;
+  return { ...paid, result: { ok: true, data: { ...d, auto_paid: outcome !== "approval_required", note } } };
+}
+
 export async function runTool(
   name: string,
   input: Record<string, unknown>,
@@ -146,6 +189,7 @@ export async function runTool(
 
   const result = await execute(name, input, identity);
   const outcome = summarizeStep(name, input, result);
+  if (identity.autoPay && typeof outcome.summary === "string") outcome.summary = outcome.summary.replace("choose a card below", "auto-pay picks the recommended one");
   emit({ type: "step", id, tool: name, title, ...outcome });
 
   const provider = typeof input.provider === "string" ? input.provider : typeof input.provider_id === "string" ? input.provider_id : "";
@@ -164,8 +208,13 @@ export async function runTool(
     const r = d && receiptOf(d as Record<string, unknown>, provider);
     if (r) emit({ type: "receipt", receipt: r });
   }
-  // A comparison becomes cards, and the model's turn ends: the person chooses.
+  // A comparison becomes cards, and the model's turn ends: the person chooses. With auto-pay on,
+  // the recommended card is paid now instead, and the model goes on to explain the result.
   const options = result.ok ? ((result.data as { _options?: OptionGroup } | undefined)?._options ?? undefined) : undefined;
+  if (options && options.recommendations.length > 0 && identity.autoPay) {
+    const paid = await autoPay(options, identity, emit, execute);
+    if (paid) return paid;
+  }
   if (options && options.recommendations.length > 0) emit({ type: "options", group: options });
 
   const pendingApproval = detectPendingApproval(name, input, result);

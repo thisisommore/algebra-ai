@@ -299,6 +299,14 @@ export function OnchainPassPanel({ passId, active }: { passId: string; active: b
         </p>
       )}
 
+      {net?.required && (view === null || !view.exists) && (
+        <p className="mt-2 rounded-md bg-danger-tint px-3 py-2 text-xs leading-snug text-danger" role="status">
+          {view === null ? "Can't pay yet" : "Can't pay any more"}: on {networkLabel(net.network)} every payment must come from a funded vault on Solana,
+          and this pass has {view === null ? "none" : "closed its vault"}. The budget above is only a spending limit, not money.
+          {view === null ? " Create the vault below to start paying." : " Make a new pass and put it on Solana to pay again."}
+        </p>
+      )}
+
       {view === null ? (
         <>
           <p className="mt-2 text-sm text-muted">

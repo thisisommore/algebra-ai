@@ -22,6 +22,8 @@ type ChatRequestBody = {
   network?: string;
   /** Cards the person clicked to pay: each is paid (with their approval) before the agent answers. */
   choices?: unknown[];
+  /** Pay the recommended card of each comparison without waiting for a click (the chat's auto-pay switch). */
+  auto_pay?: boolean;
 };
 
 const MAX_MESSAGE_CHARS = 4000;
@@ -102,7 +104,7 @@ export async function POST(request: Request) {
   // itself can't be reached, don't block the person.
   const quota = await consumeAgentTurn(cookie).catch((): TurnQuota => ({ ok: true }));
   if (!quota.ok) return NextResponse.json({ error: quotaMessage(quota) }, { status: 429 });
-  const identity: ServerIdentity = { ...token, cookie, passId: pass?.id, pass: pass ?? undefined, network };
+  const identity: ServerIdentity = { ...token, cookie, passId: pass?.id, pass: pass ?? undefined, network, autoPay: body.auto_pay === true };
   const systemPrompt = buildSystemPrompt({ network, pass, rail: rails.find((r) => r.network === network), mode: token.mode });
   const tools = toolsFor();
   const history = trimHistory(Array.isArray(body.history) ? body.history : []);

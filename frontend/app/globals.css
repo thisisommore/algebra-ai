@@ -102,6 +102,12 @@
   color: var(--color-foreground);
 }
 
+/* The console shows the "algebra" wordmark only, not the mark, for now. */
+.console-theme .algebra-mark,
+.console-theme .agent-welcome-mark {
+  display: none;
+}
+
 .console-theme .console-sidebar nav a[aria-current="page"] {
   color: var(--color-foreground);
 }

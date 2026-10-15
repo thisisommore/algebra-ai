@@ -15,7 +15,7 @@ import { getOnchainPass } from "@/lib/onchain-pass";
 import type { Simulation } from "@/lib/routing-types";
 import { networkLabel, useNetwork } from "@/lib/network";
 import { approvalRule } from "@/lib/pass-rules";
-import { IconArrowUp, IconLock, IconRefresh, IconShield, IconStop } from "@/components/icons";
+import { IconArrowUp, IconRefresh, IconShield, IconStop } from "@/components/icons";
 import { useConsoleData } from "../console-data";
 import { ApprovalCard, type ApprovalOutcome } from "./approval-card";
 import { ModelPicker, type ModelChoice, type ProviderEntry } from "./model-picker";
@@ -76,6 +76,7 @@ const MIN_VISIBLE_MS: Record<string, number> = { search_providers: 3000, get_pro
 
 const MODEL_KEY = "algebra:agent-model";
 const PASS_KEY = "algebra:agent-pass";
+const AUTO_PAY_KEY = "algebra:agent-auto-pay";
 // Provider history carries every tool result, so a long chat can get big.
 // Keep the newest turns that fit; the conversation matters more than its tail.
 const CHAT_MAX_BYTES = 400_000;
@@ -157,6 +158,8 @@ export function AgentWorkspace() {
   // What each pass has locked in its Solana vault on the chosen network; a pass with none isn't a key.
   const [vaults, setVaults] = useState<Record<string, number>>({});
   const [passId, setPassId] = useState("");
+  // Off unless the person turns it on: then a comparison pays its recommended card without a click.
+  const [autoPay, setAutoPay] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
@@ -168,6 +171,23 @@ export function AgentWorkspace() {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [input]);
+
+  useEffect(() => {
+    try {
+      setAutoPay(window.localStorage.getItem(AUTO_PAY_KEY) === "on");
+    } catch {
+      // storage blocked: off
+    }
+  }, []);
+
+  function toggleAutoPay(on: boolean) {
+    setAutoPay(on);
+    try {
+      window.localStorage.setItem(AUTO_PAY_KEY, on ? "on" : "off");
+    } catch {
+      // storage blocked: still applies on this page
+    }
+  }
 
   useEffect(() => {
     fetch("/api/agent/providers")
@@ -355,6 +375,7 @@ export function AgentWorkspace() {
             spend_pass_id: (passId && passes?.some((p) => p.id === passId && passFits(p, network)) ? passId : "") || undefined,
             network,
             choices,
+            auto_pay: autoPay || undefined,
           }),
           signal: ctrl.signal,
         });
@@ -399,7 +420,7 @@ export function AgentWorkspace() {
         inputRef.current?.focus();
       }
     },
-    [running, choice, history, passId, passes, network, updateTurn, refreshConsole]
+    [running, choice, history, passId, passes, network, autoPay, updateTurn, refreshConsole]
   );
 
   function newChat() {
@@ -579,7 +600,7 @@ export function AgentWorkspace() {
               <div className={composerStyles.controls}>
                 <ModelPicker providers={providers} value={choice} onChange={pickModel} lockedProvider={lockedProvider} />
                 <PassPicker passes={fitting} vaults={vaults} value={pass ? passId : ""} onChange={pickPass} disabled={running} sandbox={network === "sandbox"} />
-                {pass && <AskBeforePaying />}
+                {pass && <AutoPaySwitch on={autoPay} onChange={toggleAutoPay} disabled={running} />}
               </div>
               <span className={composerStyles.hint}>
                 <kbd className="font-mono">Enter</kbd> to send
@@ -716,17 +737,30 @@ function TurnView({
 
 /** Which Spend Pass the chat pays under. Only active USDC passes can pay for API calls. */
 /**
- * "Ask before paying" is always on in the chat: the agent compares providers and shows cards, and nothing is
- * paid until the person picks one and presses Pay. That press is recorded on the server as their approval.
+ * Off (the default): the agent compares providers and shows cards, and nothing is paid until the person
+ * picks one and presses Pay; that press is recorded on the server as their approval. On: each comparison
+ * pays its recommended card at once, within the pass's limits; a pass that asks above a price still asks.
  */
-function AskBeforePaying() {
+function AutoPaySwitch({ on, onChange, disabled }: { on: boolean; onChange: (on: boolean) => void; disabled?: boolean }) {
   return (
-    <span
-      title="Every payment waits for you: the agent shows the options as cards, and nothing is paid until you pick one and press Pay. The agent can't pay on its own."
-      className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-foreground"
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      title={
+        on
+          ? "Auto-pay is on: the agent pays the recommended provider straight away, within your Spend Pass's limits. A pass that asks above a price still asks. Click to ask before every payment."
+          : "Every payment waits for you: the agent shows the options as cards, and nothing is paid until you pick one and press Pay. Click to let the agent pay the recommended option on its own."
+      }
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-medium text-foreground hover:bg-primary-tint disabled:opacity-60"
     >
-      <IconLock size={13} className="text-primary" /> Asks before paying
-    </span>
+      <span aria-hidden="true" className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${on ? "bg-primary" : "bg-border-strong"}`}>
+        <span className={`absolute h-3 w-3 rounded-full bg-surface shadow transition-transform ${on ? "translate-x-3.5" : "translate-x-0.5"}`} />
+      </span>
+      Auto-pay safely
+    </button>
   );
 }
 
@@ -847,7 +881,7 @@ function EmptyState({
               transition={{ duration: 0.45, delay: 0.1 + i * 0.05, ease: EASE }}
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.98 }}
-              className="rounded-2xl border border-border-strong bg-surface px-4 py-3.5 text-left text-[0.925rem] leading-snug text-foreground transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_10px_24px_-18px_rgba(11,16,32,0.5)]"
+              className="min-w-0 rounded-2xl border border-border-strong bg-surface px-4 py-3.5 text-left text-[0.925rem] leading-snug text-foreground wrap-anywhere transition-[border-color,box-shadow] hover:border-primary/50 hover:shadow-[0_10px_24px_-18px_rgba(11,16,32,0.5)]"
             >
               {s}
             </motion.button>

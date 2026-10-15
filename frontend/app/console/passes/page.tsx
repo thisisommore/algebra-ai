@@ -147,7 +147,7 @@ function CreatePass({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
   const [budget, setBudget] = useState("1");
   const [period, setPeriod] = useState<BudgetPeriod>("week");
   const [perCall, setPerCall] = useState("0.10");
-  const [askAbove, setAskAbove] = useState("0.05");
+  const [askAbove, setAskAbove] = useState("10");
   const [providers, setProviders] = useState<ProviderSummary[]>([]);
   const [days, setDays] = useState(30);
   const [busy, setBusy] = useState(false);
@@ -496,7 +496,7 @@ function PassCard({ pass: p, onRevoked }: { pass: SpendPass; onRevoked: () => vo
             <span className="font-mono text-foreground tabular-nums">{m(p.spent_minor_units)}</span> spent {periodText(p.budget_period)}
           </span>
           <span className="text-muted">
-            <span className="font-mono text-foreground tabular-nums">{m(p.remaining_minor_units)}</span> left of {m(p.budget_minor_units)}
+            <span className="font-mono text-foreground tabular-nums">{m(p.remaining_minor_units)}</span> of {m(p.budget_minor_units)} budget left
           </span>
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={Math.round(used * 100)} aria-valuemin={0} aria-valuemax={100}>

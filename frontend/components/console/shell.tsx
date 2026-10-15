@@ -144,7 +144,7 @@ function ShellFrame({ user, children }: { user: User; children: React.ReactNode 
           </button>
           <Link href="/console" className="flex items-center gap-2 text-foreground">
             <Logo size={20} />
-            <span className="hidden font-display text-sm font-semibold min-[480px]:inline">Algebra</span>
+            <span className="font-display text-sm font-semibold">Algebra</span>
           </Link>
           <div className="ml-auto flex min-w-0 items-center gap-1.5">
             <MobileApprovalsPill />

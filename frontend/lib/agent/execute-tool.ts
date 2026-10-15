@@ -302,13 +302,16 @@ export async function executeTool(name: string, input: Record<string, unknown>, 
         if (!Number.isFinite(max) || max <= 0 || max > MAX_CALL_USDC) throw new Error(`The amount must be between 0 and ${MAX_CALL_USDC} USDC`);
         const body = input.input && typeof input.input === "object" && !Array.isArray(input.input) ? input.input : {};
         const strategy = typeof input.strategy === "string" ? input.strategy : undefined;
+        // Auto-pay: the person's standing yes, but not a yes to every price. The request doesn't ask
+        // for approval, so only the pass's own rules can hold it, and nothing approves it here.
+        const auto = input.auto === true;
         const req: client.ExecuteBody = {
           capability: work, providers: [provider], input: body, budget_max_minor: Math.round(max * USDC),
-          provider_policy: strategy ? { strategy } : undefined, window: str(input, "window"), require_approval: true,
+          provider_policy: strategy ? { strategy } : undefined, window: str(input, "window"), require_approval: !auto,
         };
         let a = await client.execute(identity, req);
         let approved = false;
-        if (a.status === 409 && a.body.reason === "approval_required" && typeof a.body.intent_id === "string") {
+        if (!auto && a.status === 409 && a.body.reason === "approval_required" && typeof a.body.intent_id === "string") {
           if (await client.approveAsPerson(identity, a.body.intent_id)) {
             approved = true;
             a = await client.executeIntent(identity, a.body.intent_id, [provider]);

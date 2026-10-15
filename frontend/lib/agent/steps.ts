@@ -77,7 +77,7 @@ function shortId(id: string) {
 }
 
 export function stepTitle(tool: string, input: Record<string, unknown>): string {
-  if (tool === "pay_choice" && typeof input.provider === "string") return `Paying ${shortId(input.provider)}`;
+  if (tool === "pay_choice" && typeof input.provider === "string") return `${input.auto === true ? "Auto-paying" : "Paying"} ${shortId(input.provider)}`;
   if (tool === "find_options" || tool === "route_work" || tool === "check_policy" || tool === "pay_and_call") {
     const what = typeof input.work === "string" ? input.work : typeof input.provider_id === "string" ? shortId(input.provider_id) : "";
     return what ? `Comparing providers for ${what}` : TITLES.find_options;

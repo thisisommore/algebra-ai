@@ -17,7 +17,6 @@ import {
   IconShield,
   IconX,
 } from "@/components/icons";
-import { Logo } from "@/components/logo";
 import styles from "./connect.module.css";
 
 const APPS = [
@@ -242,7 +241,7 @@ export default function ConnectPage() {
       <section className={styles.bridge} aria-label="How connections work">
         <div className={styles.bridgeArt} aria-hidden="true">
           <span className={styles.algebraMark}>
-            <Logo size={26} />
+            <span className="font-display text-lg font-semibold">A</span>
           </span>
           <span className={styles.connectionLine} />
           <span className={styles.brandCluster}>

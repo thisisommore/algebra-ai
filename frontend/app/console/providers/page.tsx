@@ -24,7 +24,6 @@ import { Button, ErrorNote, Skeleton } from "@/components/console/ui";
 import { Copy } from "@/components/console/snippet";
 import { ProviderEndpoints } from "@/components/console/provider-endpoints";
 import { ProviderLogo } from "@/components/provider-logo";
-import { Logo } from "@/components/logo";
 import {
   IconArrowRight,
   IconChat,
@@ -148,7 +147,7 @@ function CatalogNetwork() {
         ))}
       </svg>
       <span className={styles.networkCore}>
-        <Logo size={25} />
+        <span className="font-display text-lg font-semibold">A</span>
       </span>
       {["pay.sh", "circle", "payai", "cdp"].map((source, i) => (
         <span key={source} className={styles.networkNode} data-position={i}>

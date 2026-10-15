@@ -33,6 +33,12 @@ export type ServerIdentity = {
   askFirst?: boolean;
   /** How the person wants providers picked for this chat; it wins over what the model asks for. */
   pick?: "cheapest" | "balanced" | "fastest";
+  /**
+   * The person turned on auto-pay in the chat: a comparison pays its Balanced card at once
+   * instead of waiting for a click. The pass's own rules still apply (an "ask me above" line
+   * still asks), and anything that can't be paid that way is shown as cards.
+   */
+  autoPay?: boolean;
 };
 
 export class ServerApiError extends Error {
